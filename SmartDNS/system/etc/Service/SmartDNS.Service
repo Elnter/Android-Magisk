@@ -1,0 +1,168 @@
+#!/system/bin/xbin/busybox sh
+#
+# service init
+#
+export ServiceLog=${ModLog}
+echo "ServiceLog=${ServiceLog}" >>${ServiceLog}
+
+echo "File=${ModName}.service" $(date) >>${ServiceLog}
+
+export ServiceName=${ModName}
+echo "ServiceName=${ServiceName}" >>${ServiceLog}
+
+export ServicePID="${VarPath}/run/${ServiceName}.pid"
+echo "ServicePID=${ServicePID}" >>${ServiceLog}
+
+export ServiceCache="${VarPath}/tmp/cache"
+echo "ServiceCache=${ServiceCache}" >>${ServiceLog}
+
+export ServiceBinPath=${ModBin}
+echo "ServiceBinPath=${ServiceBinPath}" >>${ServiceLog}
+
+#-------------------------------------
+
+export ServiceBin="smartdns"
+echo "ServiceBin=${ServiceBin}" >>${ServiceLog}
+
+export ServiceConfig="${ModService}/${ServiceName}/smartdns.conf"
+echo "ServiceConfig=${ServiceConfig}" >>${ServiceLog}
+
+ServiceStartCommand="${ServiceBinPath}/${ServiceBin} -c ${ServiceConfig} -p ${ServicePID} -R"
+echo "ServiceStartCommand=${ServiceStartCommand}" >>${ServiceLog}
+
+#-------------------------------------
+
+function Status() {
+    echo "[*] Getting ${ServiceName} Service Status ..." >>${ServiceLog}
+    if [ -f ${ServicePID} ]; then
+        PID=$(cat ${ServicePID} | awk '{print $1}')
+        if [ -z ${PID} ]; then
+            rm -rf ${ServicePID} >>${ServiceLog}
+            echo "[x] ${ServiceName} ServicePID Is Not Setting Or Is NULL" >>${ServiceLog}
+            return 1
+        else
+            if [ -d "/proc/$PID" ]; then
+                echo "[!] ${ServiceName} Server Sunning" >>${ServiceLog}
+                return 0
+            else
+                rm -rf ${ServicePID} >>${ServiceLog}
+                echo "[x] ${ServiceName} Service Is Not Sunning" >>${ServiceLog}
+                return 1
+            fi
+        fi
+    else
+        echo "[x] ${ServiceName} Service Has Never Been Run" >>${ServiceLog}
+        return 1
+
+    fi
+}
+
+function Start() {
+    echo "[*] Starting ${ServiceName} Service..." >>${ServiceLog}
+    (
+        echo 1 >/proc/sys/net/ipv4/conf/all/forwarding
+        echo 1 >/proc/sys/net/ipv6/conf/all/forwarding
+        settings put global private_dns_mode off
+        if [ ! -f ${ServicePID} ]; then
+            echo "----------------IPv4tables--------------------" >>${ServiceLog}
+
+            iptables -w -t nat -D PREROUTING -p udp --dport 53 -j REDIRECT --to-port 653 || true
+            iptables -w -t nat -D PREROUTING -p tcp --dport 53 -j REDIRECT --to-port 653 || true
+            iptables -w -t nat -D PREROUTING -p udp --dport 5353 -j REDIRECT --to-port 653 || true
+            iptables -w -t nat -D PREROUTING -p tcp --dport 5353 -j REDIRECT --to-port 653 || true
+
+            iptables -w -t nat -I PREROUTING 1 -p udp --dport 53 -j REDIRECT --to-port 653 || true
+            iptables -w -t nat -I PREROUTING 2 -p tcp --dport 53 -j REDIRECT --to-port 653 || true
+            iptables -w -t nat -I PREROUTING 3 -p udp --dport 5353 -j REDIRECT --to-port 653 || true
+            iptables -w -t nat -I PREROUTING 4 -p tcp --dport 5353 -j REDIRECT --to-port 653 || true
+
+            iptables -w -t nat -L PREROUTING >>${ServiceLog}
+        fi
+
+        eval ${ServiceStartCommand} >>${ServiceLog} 2>&1
+        while true; do
+            setprop net.dns1 ::1 >>${ServiceLog}
+            setprop net.dns2 ::1 >>${ServiceLog}
+            setprop net.dns3 127.0.0.1 >>${ServiceLog}
+            setprop net.dns4 127.0.0.1 >>${ServiceLog}
+            for NetworkInterface in /sys/class/net/*; do
+                setprop net.$(echo ${NetworkInterface##*/}).dns1 ::1
+                setprop net.$(echo ${NetworkInterface##*/}).dns2 ::1
+                setprop net.$(echo ${NetworkInterface##*/}).dns3 127.0.0.1
+                setprop net.$(echo ${NetworkInterface##*/}).dns4 127.0.0.1
+            done
+            getprop | grep dns >>${ServiceLog}
+            eval ${ModBusybox} nslookup bing.com >>${ServiceLog}
+            sleep 600
+            echo "File=${ServiceName}.Service" $(date) >${ServiceLog}
+            if ! Status; then
+                Start
+            fi
+        done
+    ) &
+    sleep 1
+    PID=$(pgrep -f ${ServiceBin})
+    PID=$(echo ${PID} | tail -n 1)
+    echo ${PID} >${ServicePID}
+    echo "${ServiceName} Service PID=${PID}" >>${ServiceLog}
+    echo "[!] ${ServiceName} Service Started" >>${ServiceLog}
+    return 0
+}
+
+function Stop() {
+    echo "[*] Stopping ${ServiceName} Service..." >>${ServiceLog}
+    if [ -f ${ServicePID} ]; then
+        PID=$(cat ${ServicePID} | awk '{print $1}')
+        if [ -z ${PID} ]; then
+            rm -rf ${ServicePID} >>${ServiceLog}
+            echo "[x] ${ServiceName} ServicePID Is Not Setting Or Is NULL" >>${ServiceLog}
+            return 1
+        else
+            if [ -d "/proc/$PID" ]; then
+                kill ${PID} >>${ServiceLog}
+                rm -rf ${ServicePID} >>${ServiceLog}
+                echo "[!] ${ServiceName} Stopped" >>${ServiceLog}
+                return 0
+            else
+                rm -rf ${ServicePID} >>${ServiceLog}
+                echo "[x] ${ServiceName} Service Is Not Running" >>${ServiceLog}
+                return 1
+            fi
+        fi
+    else
+        echo "[x] ${ServiceName} Service Has Never Been Run" >>${ServiceLog}
+        return 1
+    fi
+}
+
+function Restart() {
+    Stop
+    Start
+}
+
+function Usage() {
+    echo "Usage: $0 {Start|Stop|Restart|Status}"
+    exit 1
+}
+
+if [ "$#" -ne 1 ]; then
+    Usage
+fi
+
+case "$1" in
+Start)
+    Start
+    ;;
+Stop)
+    Stop
+    ;;
+Restart)
+    Restart
+    ;;
+Status)
+    Status
+    ;;
+*)
+    Usage
+    ;;
+esac
