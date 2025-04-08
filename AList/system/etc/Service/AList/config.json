@@ -1,0 +1,115 @@
+{
+  "force": true,
+  "site_url": "",
+  "cdn": "",
+  "jwt_secret": "EQUNXQdIdptlmnUX",
+  "token_expires_in": 48,
+  "database": {
+    "type": "sqlite3",
+    "host": "",
+    "port": 0,
+    "user": "",
+    "password": "",
+    "name": "",
+    "db_file": "/data/adb/modules/AList/system/etc/Service/AList/data.db",
+    "table_prefix": "x_",
+    "ssl_mode": "",
+    "dsn": ""
+  },
+  "meilisearch": {
+    "host": "http://localhost:2200",
+    "api_key": "",
+    "index_prefix": ""
+  },
+  "scheme": {
+    "address": "",
+    "http_port": 1024,
+    "https_port": -1,
+    "force_https": false,
+    "cert_file": "",
+    "key_file": "",
+    "unix_file": "",
+    "unix_file_perm": ""
+  },
+  "temp_dir": "/dev/var/tmp/AList/cache",
+  "bleve_dir": "/dev/var/tmp/AList/bleve",
+  "dist_dir": "",
+  "log": {
+    "enable": true,
+    "name": "/dev/var/log/AList.log",
+    "max_size": 1,
+    "max_backups": 1,
+    "max_age": 1,
+    "compress": false
+  },
+  "delayed_start": 0,
+  "max_connections": 0,
+  "max_concurrency": 0,
+  "tls_insecure_skip_verify": true,
+  "tasks": {
+    "download": {
+      "workers": 32,
+      "max_retry": 9,
+      "task_persistant": true
+    },
+    "transfer": {
+      "workers": 32,
+      "max_retry": 9,
+      "task_persistant": true
+    },
+    "upload": {
+      "workers": 32,
+      "max_retry": 9,
+      "task_persistant": true
+    },
+    "copy": {
+      "workers": 32,
+      "max_retry": 9,
+      "task_persistant": true
+    },
+    "decompress": {
+      "workers": 5,
+      "max_retry": 2,
+      "task_persistant": true
+    },
+    "decompress_upload": {
+      "workers": 5,
+      "max_retry": 2,
+      "task_persistant": true
+    },
+    "allow_retry_canceled": true
+  },
+  "cors": {
+    "allow_origins": [
+      "*"
+    ],
+    "allow_methods": [
+      "*"
+    ],
+    "allow_headers": [
+      "*"
+    ]
+  },
+  "s3": {
+    "enable": false,
+    "port": 5246,
+    "ssl": false
+  },
+  "ftp": {
+    "enable": true,
+    "listen": ":1021",
+    "find_pasv_port_attempts": 50,
+    "active_transfer_port_non_20": true,
+    "idle_timeout": 900,
+    "connection_timeout": 30,
+    "disable_active_mode": false,
+    "default_transfer_binary": true,
+    "enable_active_conn_ip_check": true,
+    "enable_pasv_conn_ip_check": true
+  },
+  "sftp": {
+    "enable": true,
+    "listen": ":1022"
+  },
+  "last_launched_version": "v3.42.0"
+}
