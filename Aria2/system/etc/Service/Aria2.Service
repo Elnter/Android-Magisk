@@ -1,0 +1,154 @@
+#!/system/bin/xbin/busybox sh
+#
+# service init
+#
+export ServiceLog=${ModLog}
+echo "ServiceLog=${ServiceLog}" >>${ServiceLog}
+
+echo "File=${ModName}.service" $(date) >>${ServiceLog}
+
+export ServiceName=${ModName}
+echo "ServiceName=${ServiceName}" >>${ServiceLog}
+
+export ServicePID="${VarPath}/run/${ServiceName}.pid"
+echo "ServicePID=${ServicePID}" >>${ServiceLog}
+
+export ServiceCache="${VarPath}/tmp/cache"
+echo "ServiceCache=${ServiceCache}" >>${ServiceLog}
+
+export ServiceBinPath=${ModBin}
+echo "ServiceBinPath=${ServiceBinPath}" >>${ServiceLog}
+
+#-------------------------------------
+
+export ServiceBin="aria2c"
+echo "ServiceBin=${ServiceBin}" >>${ServiceLog}
+
+export ServiceConfig="${ModService}/${ServiceName}/aria2.conf"
+echo "ServiceConfig=${ServiceConfig}" >>${ServiceLog}
+
+ServiceStartCommand="${ServiceBinPath}/${ServiceBin} --conf-path=${ServiceConfig}"
+echo "ServiceStartCommand=${ServiceStartCommand}" >>${ServiceLog}
+
+#-------------------------------------
+
+function Status() {
+    echo "[*] Getting ${ServiceName} Service Status ..." >>${ServiceLog}
+    if [ -f ${ServicePID} ]; then
+        PID=$(cat ${ServicePID} | awk '{print $1}')
+        if [ -z ${PID} ]; then
+            rm -rf ${ServicePID} >>${ServiceLog}
+            echo "[x] ${ServiceName} ServicePID Is Not Setting Or Is NULL" >>${ServiceLog}
+            return 1
+        else
+            if [ -d "/proc/$PID" ]; then
+                echo "[!] ${ServiceName} Server Sunning" >>${ServiceLog}
+                return 0
+            else
+                rm -rf ${ServicePID} >>${ServiceLog}
+                echo "[x] ${ServiceName} Service Is Not Sunning" >>${ServiceLog}
+                return 1
+            fi
+        fi
+    else
+        echo "[x] ${ServiceName} Service Has Never Been Run" >>${ServiceLog}
+        return 1
+
+    fi
+}
+
+function Start() {
+    echo "[*] Starting ${ServiceName} Service..." >>${ServiceLog}
+    (
+        if [ -d "/dev/var/cache/.aria2/" ]; then
+            chmod 0777 /dev/var/cache/.aria2/aria2.session
+            chmod 0777 /dev/var/cache/.aria2/.netrc
+            chmod 0777 /dev/var/cache/.aria2/dht4.dat
+            chmod 0777 /dev/var/cache/.aria2/dht6.dat
+        else
+            mkdir /dev/var/cache/.aria2
+            chmod 0777 /dev/var/cache/.aria2
+            touch /dev/var/cache/.aria2/aria2.session
+            chmod 0777 /dev/var/cache/.aria2/aria2.session
+            touch /dev/var/cache/.aria2/.netrc
+            chmod 0777 /dev/var/cache/.aria2/.netrc
+            touch /dev/var/cache/.aria2/dht4.dat
+            chmod 0777 /dev/var/cache/.aria2/dht4.dat
+            touch /dev/var/cache/.aria2/dht6.dat
+            chmod 0777 /dev/var/cache/.aria2/dht6.dat
+        fi
+        eval ${ServiceStartCommand} >>${ServiceLog} 2>&1
+        while true; do
+            sleep 600
+            echo "File=${ServiceName}.Service" $(date) >${ServiceLog}
+            if ! Status; then
+                Start
+            fi
+        done
+    ) &
+    sleep 1
+    PID=$(pgrep -f ${ServiceBin})
+    PID=$(echo ${PID} | tail -n 1)
+    echo ${PID} >${ServicePID}
+    echo "${ServiceName} Service PID=${PID}" >>${ServiceLog}
+    echo "[!] ${ServiceName} Service Started" >>${ServiceLog}
+    return 0
+}
+
+function Stop() {
+    echo "[*] Stopping ${ServiceName} Service..." >>${ServiceLog}
+    if [ -f ${ServicePID} ]; then
+        PID=$(cat ${ServicePID} | awk '{print $1}')
+        if [ -z ${PID} ]; then
+            rm -rf ${ServicePID} >>${ServiceLog}
+            echo "[x] ${ServiceName} ServicePID Is Not Setting Or Is NULL" >>${ServiceLog}
+            return 1
+        else
+            if [ -d "/proc/$PID" ]; then
+                kill ${PID} >>${ServiceLog}
+                rm -rf ${ServicePID} >>${ServiceLog}
+                echo "[!] ${ServiceName} Stopped" >>${ServiceLog}
+                return 0
+            else
+                rm -rf ${ServicePID} >>${ServiceLog}
+                echo "[x] ${ServiceName} Service Is Not Running" >>${ServiceLog}
+                return 1
+            fi
+        fi
+    else
+        echo "[x] ${ServiceName} Service Has Never Been Run" >>${ServiceLog}
+        return 1
+    fi
+}
+
+function Restart() {
+    Stop
+    Start
+}
+
+function Usage() {
+    echo "Usage: $0 {Start|Stop|Restart|Status}"
+    exit 1
+}
+
+if [ "$#" -ne 1 ]; then
+    Usage
+fi
+
+case "$1" in
+Start)
+    Start
+    ;;
+Stop)
+    Stop
+    ;;
+Restart)
+    Restart
+    ;;
+Status)
+    Status
+    ;;
+*)
+    Usage
+    ;;
+esac
